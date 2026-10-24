@@ -1,0 +1,120 @@
+# Architecture de NettOS
+
+Ce document décrit l'organisation des couches, les règles non négociables et
+l'état d'avancement du socle. Il suit le cahier des charges v1.1, section 4.
+
+## Vue d'ensemble en couches
+
+De haut en bas :
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Interface Qt (ui/)      · ligne de commande (cli/)       │
+├──────────────────────────────────────────────────────────┤
+│ Services applicatifs (services/)                         │
+│   orchestrer : scan, simulation, nettoyage, rapport      │
+├──────────────────────────────────────────────────────────┤
+│ Moteurs (diagnostics/, cleaners/) + registre de règles   │
+├──────────────────────────────────────────────────────────┤
+│ Sécurité (security/)  · Persistance (persistence/)       │
+├──────────────────────────────────────────────────────────┤
+│ Adaptateurs de plateforme (adapters/) : Linux / Windows  │
+└──────────────────────────────────────────────────────────┘
+```
+
+Le flux des données va toujours **du bas vers le haut** : les adaptateurs
+lisent le système, les moteurs agrègent, les services orchestrent, l'UI
+affiche. L'UI ne touche jamais au disque directement.
+
+## Règles non négociables
+
+1. **L'interface ne supprime jamais directement un fichier.**
+2. Le moteur de diagnostic n'exige pas de privilèges administrateur pour les
+   analyses ordinaires.
+3. Les règles de nettoyage décrivent cibles, risques et conditions — jamais de
+   commandes arbitraires.
+4. Les différences Linux/Windows sont isolées dans `adapters/`.
+5. Les opérations longues s'exécutent hors du thread graphique, avec progression
+   et annulation.
+6. Le registre de plugins utilise une liste explicite de modules autorisés,
+   jamais un chargement automatique.
+7. Le moteur fonctionne et se teste **sans interface graphique**.
+
+Complément d'exigence vérifiable : le moteur ne dépend d'aucun import Qt.
+`tests/unit` et `tests/integration/test_cli.py` n'importent jamais PySide6.
+
+## Contrat des résultats
+
+Tout diagnostic produit des objets définis dans `core/result.py` :
+
+- `VolumeInfo` : un volume monté (point de montage, tailles, système de fichiers).
+- `ScanErrorRecord` : une erreur rencontrée, avec chemin et raison.
+- `ScanResult` : agrégat (nombre de fichiers, octets, erreurs, statut, durée).
+- `DiagnosticStatus` : `ok`, `partial`, `unknown`.
+
+Le statut `unknown` est une **réponse légitime** : une analyse qui ne peut pas
+conclure ne doit jamais inventer de cause.
+
+## Le scanner (diagnostics/scanner.py)
+
+Le scanner de la Phase 1 est volontairement simple mais correct :
+
+- parcours itératif (pile explicite, pas de récursion profonde) ;
+- **ne suit jamais les liens symboliques** ;
+- collecte les erreurs de permission et de fichier disparu au lieu de les avaler ;
+- signale un statut `partial` dès qu'une zone n'a pas pu être lue ;
+- expose une callback de progression pour l'UI.
+
+Les optimisations de la Phase 2 (flux d'agrégats sans liste en mémoire,
+annulation, mesures logiques/réelles) seront ajoutées avec leurs tests de
+performance (budgets de la section 8.1 : 1 M fichiers < 60 s, < 300 Mo).
+
+## Sécurité des chemins (security/path_policy.py)
+
+Deux primitives, testées indépendamment :
+
+- `is_within_root(candidate, root)` : comparaison lexicale après normalisation
+  (insensible à la casse sur Windows, sensible sur POSIX).
+- `resolve_no_symlinks(path, root=...)` : résout les liens et lève
+  `PathOutsideAuthorizedRootError` si le résultat sort du périmètre.
+
+Ces contrôles sont une **première barrière**. La protection complète contre les
+courses critiques (TOCTOU) exigera les mécanismes par plateforme décrits en
+section 5.5 : `O_NOFOLLOW` / `openat2` sous Linux, `FILE_FLAG_OPEN_REPARSE_POINT`
+et handles à partage restrictif sous Windows.
+
+## Adaptateurs de plateforme
+
+`adapters/base.py` définit `PlatformAdapter` (`name`, `list_volumes`).
+`adapters/factory.py` sélectionne l'adaptateur selon `sys.platform`. En Phase 1,
+la fabrique lève `UnsupportedPlatformError` de façon explicite : mieux vaut une
+erreur claire qu'un adaptateur factice.
+
+## Interface et traduction
+
+- `ui/app.py` : `build_application()` crée/configure `QApplication`, choisit la
+  langue et installe les traducteurs.
+- `ui/main_window.py` : fenêtre minimale, tous les textes passent par `self.tr()`.
+- `ui/translations.py` : chargement des `.qm` (fr/en) et détection de la locale.
+- `ui/i18n/*.ts` : sources de traduction ; `lrelease` produit les `.qm` livrés.
+
+La discipline de traduction est appliquée dès le premier fichier d'interface
+(section 8.3) : le coût marginal est quasi nul maintenant, un rattrapage
+ultérieur serait coûteux.
+
+## Ligne de commande
+
+`cli/main.py` utilise `argparse` et appelle les mêmes services que l'UI. Le
+mode headless sert aux tests d'intégration CI et à l'automatisation contrôlée.
+Aucune confirmation implicite : une future commande `clean` exigera `--confirm`.
+
+## Persistance
+
+`persistence/` est réservé au schéma SQLite (historique d'analyses, paramètres,
+journal d'audit). Aucun contenu de fichier n'y sera jamais stocké
+(section 4.1). Le schéma arrivera en Phase 5.
+
+## Décisions structurantes
+
+Consignées dans [docs/adr/](adr/). Chaque décision révisée produit un nouvel
+enregistrement qui annule explicitement le précédent.

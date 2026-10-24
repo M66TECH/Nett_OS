@@ -1,0 +1,48 @@
+# Préfixes communs
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+
+# Outillage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Packaging
+*.spec
+build/
+dist/
+Output/
+*.AppImage
+*.whl
+
+# Qt / traductions générées
+*.qm
+!src/nettos/ui/i18n/*.qm
+
+# Éditeurs
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
