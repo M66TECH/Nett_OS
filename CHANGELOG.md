@@ -9,8 +9,44 @@ projet adhère au [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### À venir
 
-- Phase 2 : scanner de stockage en lecture seule avec volumes, progression et
-  annulation ; format `nettos scan --json` stabilisé.
+- Phase 3 : contrat `BaseCleaner`, registre explicite de règles, versionnage.
+
+---
+
+## [0.2.0] — 2026-10-25
+
+Phase 2 : scanner de stockage en lecture seule, exploitable sans interface.
+
+### Ajouté
+
+- `LinuxAdapter` : lecture de `/proc/self/mounts`, décodage des échappements
+  octaux, filtrage des pseudo-systèmes, `shutil.disk_usage`.
+- `WindowsAdapter` : énumération des lecteurs et espace libre via `ctypes`
+  (`GetLogicalDrives`, `GetDiskFreeSpaceExW`) — aucune dépendance externe.
+- `diagnostics/filesystem.py` : détection des **junctions NTFS** et points
+  d'analyse Windows, invisibles pour `os.DirEntry.is_symlink()`.
+- Scanner complet : agrégation par répertoire, erreurs classées
+  (`ErrorKind`), tailles logiques et allouées, garde-fou `MAX_DIRECTORIES`,
+  annulation coopérative (`CancellationToken`).
+- `ScanService` : énumération des volumes + rapport JSON versionné
+  (`schema: nettos.scan/1`).
+- CLI enrichie : `--top`, `--decimal`, `--no-volumes`, `--errors`, codes de
+  sortie documentés.
+- `core/formatting.py` : unités binaires (Kio) et décimales (ko) explicites.
+- Tests : adaptateurs, agrégation, formatage, service, budgets de performance.
+- Job CI « performance » exécutant le budget d'un million de fichiers.
+
+### Corrigé
+
+- **Sécurité** : les junctions NTFS étaient parcourues et comptaient deux fois
+  les fichiers (évasion d'arborescence). Détection dédiée et tests dédiés.
+- Progression et annulation non déclenchées en début de parcours.
+- `LinuxAdapter` ne respectait pas le contrat `PlatformAdapter`.
+- Fin de ligne CRLF sur Windows : ajout d'un `.gitattributes`.
+
+### Mesuré
+
+- Scan de 1 M fichiers : ≈ 17 s (budget : 60 s), croissance mémoire < 8 Mo.
 
 ---
 

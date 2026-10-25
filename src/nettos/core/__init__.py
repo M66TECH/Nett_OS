@@ -7,25 +7,35 @@ importable et testable sans interface graphique ni privilèges particuliers.
 
 from __future__ import annotations
 
+from nettos.core.cancellation import CancellationToken
 from nettos.core.errors import (
     NettOSError,
+    OperationCancelledError,
     PathOutsideAuthorizedRootError,
     ScanError,
+    ScanLimitExceededError,
     UnsupportedPlatformError,
 )
 from nettos.core.result import (
     DiagnosticStatus,
+    DirectorySize,
+    ErrorKind,
     ScanErrorRecord,
     ScanResult,
     VolumeInfo,
 )
 
 __all__ = [
+    "CancellationToken",
     "DiagnosticStatus",
+    "DirectorySize",
+    "ErrorKind",
     "NettOSError",
+    "OperationCancelledError",
     "PathOutsideAuthorizedRootError",
     "ScanError",
     "ScanErrorRecord",
+    "ScanLimitExceededError",
     "ScanResult",
     "UnsupportedPlatformError",
     "VolumeInfo",

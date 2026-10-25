@@ -9,18 +9,33 @@ from nettos.adapters.base import PlatformAdapter
 from nettos.core.errors import UnsupportedPlatformError
 
 
-def get_platform_adapter() -> PlatformAdapter:
-    """Retourne l'adaptateur de la plateforme courante.
+def create_adapter(name: str) -> PlatformAdapter:
+    """Instancie l'adaptateur nommé (``linux`` ou ``windows``).
 
-    Les implémentations seront livrées en phase 2 ; en attendant, la
-    sélection lève une erreur explicite plutôt que de renvoyer ``None``.
+    La sélection est faite ici, à partir de ``sys.platform``, et nulle
+    part ailleurs : c'est le point d'isolation exigé par la règle 4
+    d'architecture.
     """
+    if name == "linux":
+        from nettos.adapters.linux import LinuxAdapter
+
+        return LinuxAdapter()
+    if name == "windows":
+        from nettos.adapters.windows import WindowsAdapter
+
+        return WindowsAdapter()
+    raise UnsupportedPlatformError(f"Plateforme non prise en charge : {name}")
+
+
+def current_platform_name() -> str:
+    """Retourne le nom de plateforme correspondant à ``sys.platform``."""
     if sys.platform.startswith("linux"):
-        raise UnsupportedPlatformError(
-            "Adaptateur Linux non encore implémenté (phase 2 — scanner de stockage)."
-        )
+        return "linux"
     if sys.platform.startswith("win"):
-        raise UnsupportedPlatformError(
-            "Adaptateur Windows non encore implémenté (phase 2 — scanner de stockage)."
-        )
+        return "windows"
     raise UnsupportedPlatformError(f"Plateforme non prise en charge : {sys.platform}")
+
+
+def get_platform_adapter() -> PlatformAdapter:
+    """Retourne l'adaptateur de la plateforme courante."""
+    return create_adapter(current_platform_name())

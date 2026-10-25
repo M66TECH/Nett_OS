@@ -50,12 +50,24 @@ nettos-gui --lang en
 Ligne de commande (headless, sans interface) :
 
 ```bash
-nettos scan /chemin/vers/dossier
-nettos scan /chemin/vers/dossier --json
+nettos scan /chemin/vers/dossier          # rapport texte lisible
+nettos scan /chemin/vers/dossier --json   # rapport JSON versionné
+nettos scan . --top 20 --decimal          # 20 plus gros dossiers, unités ko/Mo
+nettos scan . --no-volumes                # sans énumérer les disques
 nettos --version
 ```
 
-Option de langue pour la CLI : `nettos --lang en scan .`
+Le rapport texte indique la racine, le nombre de fichiers, la taille logique et
+allouée, la durée, le statut, les volumes (espace libre) et les répertoires les
+plus volumineux. Les erreurs sont classées (`permission_denied`, `not_found`,
+`io_error`) et jamais masquées.
+
+Le JSON suit le schéma `nettos.scan/1` : `status`, `root`, `total_files`,
+`total_bytes`, `allocated_bytes`, `error_count_by_kind`, `errors`, `volumes`,
+`directories` (limité aux plus gros, `directories_truncated` l'indique).
+
+Codes de sortie : `0` succès, `2` usage invalide, `3` diagnostic incomplet,
+`4` annulé. `--lang en` change la langue des messages.
 
 ## Développement
 
@@ -84,8 +96,9 @@ src/nettos/
 ├── ui/             interface Qt + traductions fr/en
 └── cli/            ligne de commande
 tests/
+├── support/        utilitaires (liens symboliques portables)
 ├── unit/           logique pure
-├── integration/    CLI et UI hors écran
+├── integration/    CLI, service de scan, UI hors écran, budgets de perf
 └── security/       scénarios d'évasion, liens piégés, permissions
 ```
 
@@ -96,7 +109,7 @@ Le calendrier suit six phases de deux semaines (cahier des charges, section 9).
 | Phase | Contenu | État |
 |-------|---------|------|
 | 1 | Socle, architecture, CI Linux + Windows, i18n, app minimale | ✅ |
-| 2 | Scanner de stockage en lecture seule, `nettos scan --json` | ⏳ |
+| 2 | Scanner de stockage en lecture seule, `nettos scan --json` | ✅ |
 | 3 | Contrat `BaseCleaner`, registre de règles | — |
 | 4 | Simulation, confirmation, quarantaine, journalisation | — |
 | 5 | Tableau de bord, historique SQLite, fr/en | — |

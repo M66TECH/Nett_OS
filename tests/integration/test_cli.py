@@ -28,7 +28,18 @@ def test_scan_human_output_mentions_totals(tree, capsys) -> None:
 
     assert exit_code == 0
     assert "Fichiers" in captured.out
-    assert "2000" in captured.out
+    assert "1.9 Kio" in captured.out
+    assert "Statut" in captured.out
+
+
+def test_scan_human_output_decimal_units(tree, capsys) -> None:
+    exit_code = main(["scan", str(tree), "--decimal"])
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "2.0 ko" in captured.out
+    assert "Kio" not in captured.out
 
 
 def test_scan_missing_directory_returns_error_code(tmp_path, capsys) -> None:

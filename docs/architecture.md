@@ -57,17 +57,41 @@ conclure ne doit jamais inventer de cause.
 
 ## Le scanner (diagnostics/scanner.py)
 
-Le scanner de la Phase 1 est volontairement simple mais correct :
+Le scanner de la phase 2 est un parcours itératif complet :
 
-- parcours itératif (pile explicite, pas de récursion profonde) ;
-- **ne suit jamais les liens symboliques** ;
-- collecte les erreurs de permission et de fichier disparu au lieu de les avaler ;
-- signale un statut `partial` dès qu'une zone n'a pas pu être lue ;
-- expose une callback de progression pour l'UI.
+- parcours avec pile explicite (pas de limite de récursion) ;
+- **aucun lien suivi** : liens symboliques POSIX/Windows **et** junctions NTFS,
+  détectés par `diagnostics/filesystem.py` (attribut `FILE_ATTRIBUTE_REPARSE_POINT`
+  via ctypes, car `is_symlink()` voit une junction comme un répertoire ordinaire) ;
+- agrégats en flux : seules les tailles **par répertoire** sont conservées, pas la
+  liste des fichiers (budget mémoire) ;
+- erreurs classées (`permission_denied`, `not_found`, `io_error`, `other`) et
+  comptées, jamais avalées ;
+- annulation coopérative à chaque répertoire et à chaque entrée ;
+- garde-fou `MAX_DIRECTORIES` contre les structures cycliques ;
+- tailles logiques **et** allouées (via `st_blocks` sous POSIX).
 
-Les optimisations de la Phase 2 (flux d'agrégats sans liste en mémoire,
-annulation, mesures logiques/réelles) seront ajoutées avec leurs tests de
-performance (budgets de la section 8.1 : 1 M fichiers < 60 s, < 300 Mo).
+### Mesures de performance
+
+Mesuré sur la machine de référence (Windows 10, SSD) :
+
+| Indicateur | Budget | Mesuré |
+|------------|--------|--------|
+| Scan de 1 M fichiers | 60 s | ≈ 17 s (extrapolé depuis 30 000 fichiers : 0,50 s) |
+| Mémoire du moteur | 300 Mo | < 8 Mo de croissance entre 1 000 et 4 000 fichiers |
+| Simulation de 10 000 cibles | 5 s | à mesurer en phase 4 |
+
+> La génération de l'arborescence de test n'est pas comptée dans le budget :
+> créer 1 M fichiers peut dépasser 15 minutes sur un disque avec antivirus actif.
+
+### Adapters de plateforme (phase 2)
+
+`LinuxAdapter` lit `/proc/self/mounts` (aucun privilège requis), décode les
+échappements octaux (`\040`), filtre les pseudo-systèmes (`proc`, `sysfs`, `tmpfs`…)
+et interroge `shutil.disk_usage`. `WindowsAdapter` énumère les lecteurs via
+`GetLogicalDrives`, filtre les types utilisables (fixe, amovible, réseau) et lit
+l'espace via `GetDiskFreeSpaceExW` — le tout par `ctypes`, **sans dépendance
+externe**.
 
 ## Sécurité des chemins (security/path_policy.py)
 

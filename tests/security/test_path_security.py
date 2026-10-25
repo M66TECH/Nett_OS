@@ -4,6 +4,11 @@
 Critère d'arrêt (section 10.2) : aucune cible ne doit être atteignable
 hors périmètre. Les scénarios d'arborescences piégées s'étendront au
 moteur de nettoyage en phases 3 à 4.
+
+Sur Windows, la création de liens symboliques exige soit le mode
+développeur, soit des privilèges administrateur. Les tests concernés sont
+donc marqués ``skip`` lorsque la création échoue, plutôt que de masquer
+le scénario : en intégration continue sous Linux, ils s'exécutent tous.
 """
 
 from __future__ import annotations
@@ -13,18 +18,11 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.support.symlinks import try_symlink as _try_symlink
 
 from nettos.core.errors import PathOutsideAuthorizedRootError, UnsupportedPlatformError
 from nettos.diagnostics.scanner import StorageScanner
 from nettos.security.path_policy import resolve_no_symlinks
-
-
-def _make_symlink(link: Path, target: Path, *, directory: bool = False) -> bool:
-    try:
-        link.symlink_to(target, target_is_directory=directory)
-    except (OSError, NotImplementedError):
-        return False
-    return True
 
 
 def test_symlink_escape_is_rejected(tmp_path: Path) -> None:
@@ -34,7 +32,7 @@ def test_symlink_escape_is_rejected(tmp_path: Path) -> None:
     outside.write_text("sensible")
 
     link = root / "link"
-    if not _make_symlink(link, outside):
+    if not _try_symlink(link, outside):
         pytest.skip("liens symboliques indisponibles sur cette plateforme")
 
     with pytest.raises(PathOutsideAuthorizedRootError):
@@ -48,7 +46,7 @@ def test_scanner_ignores_symlink_into_sensitive_area(tmp_path: Path) -> None:
     sensitive.mkdir()
     (sensitive / "secret.txt").write_text("x" * 5000)
 
-    if not _make_symlink(root / "evil", sensitive, directory=True):
+    if not _try_symlink(root / "evil", sensitive, directory=True):
         pytest.skip("liens symboliques indisponibles sur cette plateforme")
 
     result = StorageScanner().scan(root)
@@ -70,10 +68,11 @@ def test_path_with_spaces_and_unicode(tmp_path: Path) -> None:
     assert result.total_bytes == 42
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="les ACL Windows ne reproduisent pas chmod POSIX simplement",
+)
 def test_permission_denied_is_reported_not_crashed(tmp_path: Path) -> None:
-    if sys.platform.startswith("win"):
-        pytest.skip("les ACL Windows ne reproduisent pas chmod POSIX simplement")
-
     root = tmp_path / "root"
     locked = root / "locked"
     locked.mkdir(parents=True)
@@ -88,14 +87,8 @@ def test_permission_denied_is_reported_not_crashed(tmp_path: Path) -> None:
     assert result.status.value == "partial"
 
 
-def test_scanner_never_writes(tree_integrity_check: None) -> None:
+def test_scanner_never_writes(tmp_path: Path) -> None:
     """Le scanner est en lecture seule : aucune opération d'écriture."""
-    assert tree_integrity_check is None
-
-
-@pytest.fixture
-def tree_integrity_check(tmp_path: Path) -> None:
-    """Le scanner laisse l'arborescence strictement inchangée."""
     root = tmp_path / "scan-me"
     root.mkdir()
     (root / "file.txt").write_text("contenu")

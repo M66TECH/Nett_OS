@@ -46,3 +46,7 @@ Output/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Documents de cadrage locaux (non distribues dans le depot)
+*.docx
+

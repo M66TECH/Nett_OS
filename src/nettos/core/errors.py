@@ -23,3 +23,15 @@ class PathOutsideAuthorizedRootError(NettOSError):
 
 class UnsupportedPlatformError(NettOSError):
     """Le système d'exploitation courant n'a pas d'adaptateur disponible."""
+
+
+class ScanLimitExceededError(NettOSError):
+    """La limite de sécurité de parcours a été atteinte.
+
+    Protège contre les boucles de points d'analyse et les volumes dont la
+    structure change pendant le parcours (section 5.3).
+    """
+
+
+class OperationCancelledError(NettOSError):
+    """Annulation demandée par l'utilisateur, pas une erreur du système."""

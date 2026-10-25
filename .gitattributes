@@ -1,0 +1,23 @@
+# Normalisation des fins de ligne : évite les conversions CRLF/LF
+# accidentelles entre Windows et Linux.
+* text=auto eol=lf
+
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.ts text eol=lf
+*.cfg text eol=lf
+*.txt text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+LICENSE text eol=lf
+
+# Fichiers binaires : jamais de conversion
+*.qm binary
+*.docx binary
+*.png binary
+*.ico binary
+*.svg text eol=lf
+*.AppImage binary

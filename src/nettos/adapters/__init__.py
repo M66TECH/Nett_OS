@@ -9,6 +9,15 @@ d'appel spécifique à un OS (cahier des charges, section 4.2, règle 4).
 from __future__ import annotations
 
 from nettos.adapters.base import PlatformAdapter
-from nettos.adapters.factory import get_platform_adapter
+from nettos.adapters.factory import (
+    create_adapter,
+    current_platform_name,
+    get_platform_adapter,
+)
 
-__all__ = ["PlatformAdapter", "get_platform_adapter"]
+__all__ = [
+    "PlatformAdapter",
+    "create_adapter",
+    "current_platform_name",
+    "get_platform_adapter",
+]

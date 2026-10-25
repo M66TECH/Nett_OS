@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from tests.support.symlinks import try_symlink
 
 from nettos.core.result import DiagnosticStatus
 from nettos.diagnostics.scanner import StorageScanner
@@ -48,15 +49,9 @@ def test_scan_progress_is_reported(tree: Path) -> None:
     assert seen[-1][0] >= seen[0][0]
 
 
-@pytest.mark.skipif(
-    not hasattr(Path, "symlink_to"),
-    reason="les liens symboliques ne sont pas disponibles",
-)
 def test_scan_does_not_follow_symlinks(tree: Path) -> None:
     link = tree / "link-to-sub"
-    try:
-        link.symlink_to(tree / "sub", target_is_directory=True)
-    except OSError:
+    if not try_symlink(link, tree / "sub", directory=True):
         pytest.skip("création de lien symbolique non autorisée sur cette plateforme")
 
     result = StorageScanner().scan(tree)
