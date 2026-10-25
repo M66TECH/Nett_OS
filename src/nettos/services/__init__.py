@@ -8,6 +8,7 @@ moteurs directement. Les services appliquent le pipeline complet
 
 from __future__ import annotations
 
+from nettos.services.clean_rules_service import CleanRulesService
 from nettos.services.scan_service import ScanService
 
-__all__ = ["ScanService"]
+__all__ = ["CleanRulesService", "ScanService"]

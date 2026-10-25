@@ -9,7 +9,53 @@ projet adhère au [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### À venir
 
-- Phase 3 : contrat `BaseCleaner`, registre explicite de règles, versionnage.
+- Phase 4 : simulation confirmée, revalidation juste avant opération,
+  quarantaine minimale, journalisation de l'espace réellement récupéré.
+
+---
+
+## [0.3.0] — 2026-10-25
+
+Phase 3 : règles de nettoyage déclaratives et simulation. **Aucune
+suppression n'est possible dans cette version.**
+
+### Ajouté
+
+- `cleaners/rules.py` : modèle immuable `CleanerRule` / `CleanTarget` avec
+  validation stricte (identifiant, motifs relatifs, risque, dates).
+  `RiskLevel` ordonné, `Platform` typée.
+- `cleaners/base.py` : contrat `BaseCleaner` (identifiant, version,
+  plateformes, cibles, exclusions, risque, simulation, description) et
+  `execute()` volontairement bloqué.
+- `cleaners/simulation.py` : moteur unique de simulation en lecture seule —
+  liens et junctions refusés, exclusions prioritaires, filtre d'âge,
+  validation de chemin, plafonds de candidats/entrées/profondeur.
+- `cleaners/registry.py` : registre **explicite** (liste littérale, aucune
+  découverte dynamique), statuts `active` / `not_applicable` / `stale` /
+  `disabled`, instanciation refusée si non actif.
+- Six règles livrées : `linux.user.cache`, `linux.user.thumbnails`,
+  `linux.user.trash`, `windows.user.temp`, `windows.user.thumbnails`,
+  `windows.user.crashdumps`.
+- Service `CleanRulesService` et commandes `nettos rules` / `nettos plan`
+  (`--json`, `--all`, `--risk`, `--limit`, `--decimal`).
+- 116 nouveaux tests : motif de patterns, modèle de règle, simulation de
+  sécurité, registre, règles livrées, CLI.
+
+### Corrigé
+
+- **Critique** : sur Windows, `_relative` comparait un chemin natif (`\`) à
+  un préfixe POSIX (`/`) : aucune exclusion n'était jamais appliquée.
+- Cache des cibles indexé par identifiant seul : un filtre d'âge d'une règle
+  pouvait s'appliquer à une autre. Clé désormais exhaustive.
+- Règle des miniatures Windows trop large (`**/*.db` capturait `iconcache.db`
+  et d'autres bases applicatives).
+- Simulation 30× plus lente que nécessaire : `realpath` appelé par fichier au
+  lieu des seuls candidats, motifs recompilés à chaque entrée.
+
+### Mesuré
+
+- Simulation de `%TEMP%` (≈ 20 000 entrées) : 4,2 s.
+- Coût par entrée : ≈ 0,08 ms.
 
 ---
 

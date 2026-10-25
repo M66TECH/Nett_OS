@@ -93,6 +93,66 @@ et interroge `shutil.disk_usage`. `WindowsAdapter` énumère les lecteurs via
 l'espace via `GetDiskFreeSpaceExW` — le tout par `ctypes`, **sans dépendance
 externe**.
 
+## Moteur de nettoyage : règles et simulation (phase 3)
+
+La phase 3 **n'exécute aucune suppression**. Elle livre le modèle, le moteur
+de simulation et les premières règles, de sorte que la phase 4 n'ait plus
+qu'à brancher le pipeline de confirmation et de quarantaine.
+
+```
+CleanerRule  (données immuables)      CleanerRegistry (liste littérale)
+   │  targets, excluded, risk,            │  statut calculé :
+   │  platforms, version, dates           │  active / not_applicable /
+   ▼                                      │  stale / disabled
+DeclarativeCleaner  ─────────────►  instanciation refusée si non actif
+   │  RULE + roots()
+   ▼
+SimulationEngine   (UNIQUE parcours de sécurité)
+   1. liens et points d'analyse → refusés
+   2. exclusions               → gagnent toujours
+   3. motif de cible           → correspondance linéaire
+   4. filtre d'âge             → `max_age_days`
+   5. validation de chemin     → `resolve_no_symlinks`
+   6. plafonds                 → candidats, entrées, profondeur
+```
+
+**Pourquoi un moteur unique.** La sécurité est écrite et testée une seule
+fois. Une règle est un objet de données relisible sans lire de code
+(ADR-0005).
+
+**Ce qui n'existe pas encore.** `BaseCleaner.execute()` lève
+`NotImplementedError` : une suppression accidentelle est impossible par
+construction. La phase 4 ajoutera la revalidation juste avant opération, la
+confirmation explicite et la quarantaine.
+
+### Règles livrées
+
+| Identifiant | Risque | Portée |
+|-------------|--------|--------|
+| `linux.user.cache` | modéré | `~/.cache`, hors caches de compilation et de paquets |
+| `linux.user.thumbnails` | faible | miniatures du bureau |
+| `linux.user.trash` | modéré | corbeille (suppression définitive) |
+| `windows.user.temp` | faible | `%TEMP%`, fichiers de plus de 7 jours |
+| `windows.user.thumbnails` | faible | bases de miniatures de l'Explorateur |
+| `windows.user.crashdumps` | modéré | vidages et rapports de plus de 30 jours |
+
+Aucune règle livrée n'exige de privilège administrateur, ne vise `C:\Windows`,
+`/etc`, `/var/lib` ni le registre. Ces invariants sont vérifiés par
+`tests/unit/test_cleaner_registry.py`.
+
+### Performances de simulation
+
+| Scénario | Mesuré |
+|----------|--------|
+| `%TEMP%` (≈ 20 000 entrées) | 4,2 s |
+| Miniatures | 0,02 s |
+| Candidat individuel | ≈ 0,08 ms par entrée |
+
+Le coût par entrée a été divisé par 30 en réordonnant les contrôles (filtre
+d'âge avant `realpath`) et en pré-compilant les motifs. Un défaut critique
+corrigé au passage : les antislashs Windows empêchaient toute correspondance
+relative, donc **toutes** les exclusions étaient inopérantes sur Windows.
+
 ## Sécurité des chemins (security/path_policy.py)
 
 Deux primitives, testées indépendamment :

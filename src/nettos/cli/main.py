@@ -86,6 +86,66 @@ def build_parser() -> argparse.ArgumentParser:
         help="Nombre d'erreurs détaillées affichées (défaut : 20).",
     )
 
+    rules = subparsers.add_parser(
+        "rules",
+        help="Liste les règles de nettoyage connues.",
+        description=(
+            "Liste les règles de nettoyage livrées avec l'application, leur statut "
+            "et leur niveau de risque. Aucune suppression n'est effectuée."
+        ),
+    )
+    rules.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Émet la liste au format JSON.",
+    )
+    rules.add_argument(
+        "--all",
+        action="store_true",
+        dest="show_all",
+        help="Affiche aussi les règles non applicables à cette plateforme.",
+    )
+    rules.add_argument(
+        "--risk",
+        choices=("low", "moderate", "high"),
+        default=None,
+        help="Ne garde que les règles d'un niveau de risque égal ou supérieur.",
+    )
+
+    plan = subparsers.add_parser(
+        "plan",
+        help="Simule le nettoyage d'une règle, sans rien supprimer.",
+        description=(
+            "Énumère les fichiers qu'une règle viserait. Cette commande est "
+            "strictement en lecture seule : aucun fichier n'est modifié."
+        ),
+    )
+    plan.add_argument(
+        "rule",
+        nargs="?",
+        default=None,
+        help="Identifiant de la règle (par défaut : toutes les règles actives).",
+    )
+    plan.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Émet le plan au format JSON.",
+    )
+    plan.add_argument(
+        "--decimal",
+        action="store_true",
+        help="Affiche les tailles en unités décimales.",
+    )
+    plan.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        metavar="N",
+        help="Nombre de fichiers affichés par règle (défaut : 20).",
+    )
+
     return parser
 
 
@@ -151,6 +211,98 @@ def _print_human_report(result: object, args: argparse.Namespace) -> None:
             print(f"    {error.path} : {error.reason}")
 
 
+def _run_rules(args: argparse.Namespace) -> int:
+    from nettos.cleaners import RiskLevel
+    from nettos.services.clean_rules_service import CleanRulesService
+
+    service = CleanRulesService()
+    minimum = RiskLevel.parse(args.risk) if args.risk else None
+    entries = service.list_rules(risk_at_least=minimum)
+
+    if not args.show_all:
+        entries = [
+            entry for entry in entries if entry.status.value in {"active", "stale", "disabled"}
+        ]
+
+    if args.as_json:
+        print(json.dumps(service.as_dict(entries), ensure_ascii=False, indent=2))
+        return EXIT_OK
+
+    platform = service.registry.platform.value
+    print(f"Plateforme : {platform}")
+    print(f"Règles     : {len(entries)}\n")
+    for entry in entries:
+        rule = entry.rule
+        if rule is None:
+            print(f"  [illisible] {entry.status.value}: {entry.reason}")
+            continue
+        flags = []
+        if rule.requires_admin:
+            flags.append("admin requis")
+        if rule.is_stale:
+            flags.append("OBSOLÈTE")
+        flag_text = f" [{', '.join(flags)}]" if flags else ""
+        print(f"  {rule.identifier}  ({rule.risk.label}, v{rule.version}){flag_text}")
+        print(f"    {rule.title}")
+        if entry.status.value != "active":
+            print(f"    statut : {entry.status.value} — {entry.reason}")
+    return EXIT_OK
+
+
+def _run_plan(args: argparse.Namespace) -> int:
+    from nettos.services.clean_rules_service import CleanRulesService
+
+    service = CleanRulesService()
+    binary = not args.decimal
+
+    identifiers = (
+        [args.rule]
+        if args.rule
+        else [entry.identifier for entry in service.registry.active_entries() if entry.identifier]
+    )
+    if not identifiers:
+        print("nettos: aucune règle active sur cette plateforme.", file=sys.stderr)
+        return EXIT_USAGE
+
+    payloads: list[dict[str, object]] = []
+    for identifier in identifiers:
+        try:
+            result = service.simulate(identifier)
+        except KeyError:
+            print(f"nettos: règle inconnue : {identifier}", file=sys.stderr)
+            return EXIT_USAGE
+        except PermissionError as exc:
+            print(f"nettos: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        payloads.append(service.simulation_as_dict(result))
+        if not args.as_json:
+            _print_plan(result, binary=binary, limit=args.limit)
+
+    if args.as_json:
+        output = payloads[0] if args.rule else payloads
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    elif not args.as_json:
+        print("\nAucune suppression effectuée : cette commande est en lecture seule.")
+
+    return EXIT_OK
+
+
+def _print_plan(result: object, *, binary: bool, limit: int) -> None:
+    from nettos.cleaners.base import SimulationResult
+
+    assert isinstance(result, SimulationResult)
+    print(f"\nRègle    : {result.rule_identifier}")
+    print(f"Fichiers : {result.file_count}")
+    print(f"Taille   : {format_bytes(result.total_bytes, binary=binary)}")
+    if result.truncated:
+        print("Attention : énumération tronquée par la limite de sécurité.")
+    for root in result.missing_roots:
+        print(f"  racine absente : {root}")
+    for candidate in result.candidates[: max(limit, 0)]:
+        size = format_bytes(candidate.size_bytes, binary=binary)
+        print(f"  {size:>10}  {candidate.age_days:7.1f} j  {candidate.path}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Point d'entrée exécutable."""
     parser = build_parser()
@@ -158,6 +310,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "scan":
         return _run_scan(args.path, args)
+    if args.command == "rules":
+        return _run_rules(args)
+    if args.command == "plan":
+        return _run_plan(args)
 
     parser.print_help()
     return EXIT_OK

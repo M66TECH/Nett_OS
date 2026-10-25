@@ -12,6 +12,7 @@ enregistrement qui annule explicitement le précédent.
 | [0002](0002-python-3.10-minimum.md) | Python 3.10 comme version minimale | Acceptée |
 | [0003](0003-package-layout-src.md) | Arborescence `src/` et découpage par couches | Acceptée |
 | [0004](0004-junctions-non-suivies.md) | Ne jamais suivre les junctions et points d'analyse | Acceptée |
+| [0005](0005-regles-declaratives.md) | Règles déclaratives et simulation centralisée | Acceptée |
 
 ## Modèle d'un enregistrement
 

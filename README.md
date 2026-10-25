@@ -69,6 +69,22 @@ Le JSON suit le schéma `nettos.scan/1` : `status`, `root`, `total_files`,
 Codes de sortie : `0` succès, `2` usage invalide, `3` diagnostic incomplet,
 `4` annulé. `--lang en` change la langue des messages.
 
+### Règles et simulation (phase 3)
+
+```bash
+nettos rules                    # règles actives sur cette plateforme
+nettos rules --all              # toutes, y compris celles d'un autre OS
+nettos rules --risk moderate    # niveau de risque égal ou supérieur
+nettos plan                     # simule toutes les règles actives
+nettos plan windows.user.temp   # simule une règle
+nettos plan --json              # plan complet en JSON (schema nettos.plan/1)
+```
+
+**Aucune commande de cette version ne supprime de fichier.** `plan` énumère
+les cibles, leur taille et leur âge, puis affiche explicitement qu'aucune
+suppression n'a eu lieu. `BaseCleaner.execute()` lève une erreur : c'est
+volontaire jusqu'à la phase 4.
+
 ## Développement
 
 ```bash
@@ -89,7 +105,7 @@ src/nettos/
 ├── core/           modèles de résultats, erreurs (sans Qt, sans I/O)
 ├── adapters/       isolent les différences Linux / Windows
 ├── diagnostics/    moteur de diagnostic (lecture seule)
-├── cleaners/       moteur de nettoyage (à venir)
+├── cleaners/       règles déclaratives + simulation (sans suppression)
 ├── security/       contrôles de chemin, liste d'autorisation
 ├── services/       orchestration appelée par l'UI et la CLI
 ├── persistence/    SQLite : historique, paramètres, journal
@@ -110,7 +126,7 @@ Le calendrier suit six phases de deux semaines (cahier des charges, section 9).
 |-------|---------|------|
 | 1 | Socle, architecture, CI Linux + Windows, i18n, app minimale | ✅ |
 | 2 | Scanner de stockage en lecture seule, `nettos scan --json` | ✅ |
-| 3 | Contrat `BaseCleaner`, registre de règles | — |
+| 3 | Règles déclaratives, registre explicite, `nettos rules` / `plan` | ✅ |
 | 4 | Simulation, confirmation, quarantaine, journalisation | — |
 | 5 | Tableau de bord, historique SQLite, fr/en | — |
 | 6 | Spécificités Windows/Linux, packaging, alpha | — |
