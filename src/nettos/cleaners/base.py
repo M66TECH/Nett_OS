@@ -46,12 +46,20 @@ class CleanerStatus(enum.Enum):
 
 @dataclass(frozen=True, slots=True)
 class CandidateFile:
-    """Fichier proposé au nettoyage par une simulation."""
+    """Fichier proposé au nettoyage par une simulation.
+
+    ``snapshot`` porte l'identité du fichier **au moment de la simulation** :
+    c'est cette référence, et non une relecture tardive, qui servira de
+    comparaison lors de la revalidation avant opération (protection contre
+    les courses critiques entre simulation et exécution).
+    """
 
     path: str
     size_bytes: int
     modified_at: float
     age_days: float
+    file_id: str = ""
+    """Identité stable observée à la simulation (``dev:ino`` ou index)."""
 
 
 @dataclass(frozen=True, slots=True)

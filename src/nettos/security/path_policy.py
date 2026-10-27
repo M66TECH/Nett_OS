@@ -45,12 +45,15 @@ def is_within_root(candidate: Path, root: Path) -> bool:
 def resolve_no_symlinks(path: Path, *, root: Path) -> Path:
     """Résout ``path`` et vérifie qu'il reste sous ``root``.
 
-    Les liens symboliques rencontrés dans le chemin sont résolus, puis le
-    résultat est comparé à ``root``. Lève
+    Les liens symboliques rencontrés dans le chemin sont résolus, ainsi que
+    la racine elle-même : sans cela, une racine exprimée avec un chemin
+    court Windows (``MILKA-~1``) serait comparée à un candidat en chemin
+    long, et **toute** cible serait jugée hors périmètre. Lève
     :class:`PathOutsideAuthorizedRootError` dès qu'une sortie est détectée.
     """
     resolved = Path(os.path.realpath(path))
-    if not is_within_root(resolved, root):
+    resolved_root = Path(os.path.realpath(root))
+    if not is_within_root(resolved, resolved_root):
         raise PathOutsideAuthorizedRootError(
             f"Le chemin résolu {resolved!s} sort du périmètre autorisé {root!s}."
         )

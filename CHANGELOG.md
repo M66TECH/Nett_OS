@@ -9,8 +9,53 @@ projet adhère au [versionnage sémantique](https://semver.org/lang/fr/).
 
 ### À venir
 
-- Phase 4 : simulation confirmée, revalidation juste avant opération,
-  quarantaine minimale, journalisation de l'espace réellement récupéré.
+- Phase 5 : tableau de bord Qt, historique SQLite dans l'interface, fr/en.
+
+---
+
+## [0.4.0] — 2026-10-26
+
+Phase 4 : pipeline de nettoyage contrôlé, avec revalidation, quarantaine et
+journal d'audit. **La suppression devient possible, sous confirmation
+explicite.**
+
+### Ajouté
+
+- `security/revalidation.py` : revalidation anti-TOCTOU en étapes —
+  périmètre, `lstat`, refus des liens et points d'analyse, comparaison
+  identité/taille/date, ouverture `O_NOFOLLOW`, `fstat` sur descripteur.
+- `cleaners/quarantine.py` : quarantaine minimale avec métadonnées
+  (chemin d'origine, règle, version, date, empreinte SHA-256), restauration
+  et purge. Renommage atomique sur même volume ; repli copie + vérification
+  d'empreinte ; sinon entrée marquée irréversible.
+- `persistence/audit_log.py` : journal SQLite versionné (opérations, cibles,
+  résumés d'erreurs), sans contenu de fichier et sans import réseau.
+- `services/clean_service.py` : pipeline simulation → décision →
+  revalidation → action → mesure → journalisation, avec garde `confirm`.
+- CLI : `clean` (`--dry-run` par défaut, `--confirm`, `--json`,
+  `--max-targets`), `quarantine list|restore|purge`, `history`
+  (`--json`, `--purge`, `--yes`). Code de sortie `5` si confirmation
+  manquante.
+- Schéma JSON `nettos.clean/1`.
+- 83 nouveaux tests : revalidation, exécution, quarantaine, audit, CLI.
+
+### Corrigé
+
+- **Critique** : la première implémentation capturait un nouveau snapshot au
+  moment de l'exécution et le comparait à lui-même, annulant toute
+  protection TOCTOU. La comparaison porte désormais sur la référence de
+  simulation transportée par `CandidateFile`.
+- **Critique** : `DirEntry.stat()` ne renseigne pas `st_ino` sous Windows
+  (`0:0`), rendant indétectable tout remplacement. L'identité est lue par
+  `lstat` sur les seuls candidats retenus.
+- Revalidation : une référence de simulation absente est désormais refusée.
+
+### Mesuré
+
+- Dry-run et absence de confirmation : 0 fichier touché (vérifié par test).
+- Modification ou substitution de lien après simulation : rejetée, cible
+  conservée.
+- Restauration : contenu identique, empreinte vérifiée.
 
 ---
 

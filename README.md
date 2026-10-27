@@ -14,8 +14,10 @@ lorsqu'il ne peut pas conclure.
 - Persistance : **SQLite** (historique local uniquement)
 - Statut : **pré-alpha** — le socle (Phase 1) est en place, le scanner est en cours.
 
-> L'état courant est **strictement en lecture seule**. Aucune opération de
-> suppression n'est exposée par cette version.
+> Le nettoyage est désormais possible (phase 4), mais uniquement après
+> simulation et confirmation explicite (`--confirm`), et les fichiers partent
+> en quarantaine lorsqu'elle est disponible. Toutes les commandes de
+> diagnostic restent en lecture seule.
 
 ## Ce que NettOS ne sera jamais
 
@@ -82,8 +84,31 @@ nettos plan --json              # plan complet en JSON (schema nettos.plan/1)
 
 **Aucune commande de cette version ne supprime de fichier.** `plan` énumère
 les cibles, leur taille et leur âge, puis affiche explicitement qu'aucune
-suppression n'a eu lieu. `BaseCleaner.execute()` lève une erreur : c'est
-volontaire jusqu'à la phase 4.
+suppression n'a eu lieu.
+
+### Nettoyage contrôlé (phase 4)
+
+```bash
+nettos clean windows.user.temp              # simulation, rien n'est touché
+nettos clean windows.user.temp --confirm    # mise en quarantaine réelle
+nettos clean --confirm                      # refusé : une règle est requise
+nettos quarantine list                      # entrées de la quarantaine
+nettos quarantine restore <id>              # restaure un fichier
+nettos quarantine purge --yes               # purge définitive
+nettos history                              # journal d'audit local
+```
+
+Garde-fous appliqués :
+
+- `--confirm` est **obligatoire** pour agir ; sans lui, le code de sortie
+  est `5` et rien n'est modifié ;
+- chaque cible est **revalidée** juste avant l'opération (identité, taille,
+  date, liens, périmètre) ;
+- les fichiers partent en **quarantaine** lorsqu'elle est possible ; sinon
+  la suppression est signalée comme irréversible ;
+- l'espace **réellement** récupéré est mesuré, distinct de l'estimation ;
+- tout est consigné dans un journal SQLite local, sans jamais enregistrer le
+  contenu des fichiers.
 
 ## Développement
 
@@ -127,7 +152,7 @@ Le calendrier suit six phases de deux semaines (cahier des charges, section 9).
 | 1 | Socle, architecture, CI Linux + Windows, i18n, app minimale | ✅ |
 | 2 | Scanner de stockage en lecture seule, `nettos scan --json` | ✅ |
 | 3 | Règles déclaratives, registre explicite, `nettos rules` / `plan` | ✅ |
-| 4 | Simulation, confirmation, quarantaine, journalisation | — |
+| 4 | Simulation, confirmation, quarantaine, journalisation | ✅ |
 | 5 | Tableau de bord, historique SQLite, fr/en | — |
 | 6 | Spécificités Windows/Linux, packaging, alpha | — |
 

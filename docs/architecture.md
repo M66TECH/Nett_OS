@@ -153,6 +153,73 @@ d'âge avant `realpath`) et en pré-compilant les motifs. Un défaut critique
 corrigé au passage : les antislashs Windows empêchaient toute correspondance
 relative, donc **toutes** les exclusions étaient inopérantes sur Windows.
 
+## Exécution contrôlée et quarantaine (phase 4)
+
+Le pipeline destructif n'est accessible qu'après simulation, et chaque
+point de décision est bloquant (section 6.1).
+
+```
+simulation ──► décision ──► revalidation ──► action ──► mesure ──► journal
+                 │             │              │           │
+          sans confirm :    lien/race     quarantaine   réel vs
+          rien n'est       → rejet       ou suppression théorique
+          touché                           irréversible
+```
+
+### La référence de simulation
+
+`CandidateFile` transporte l'identité observée **pendant** la simulation
+(`st_dev:st_ino`). La revalidation compare cette référence à l'état courant.
+C'est la clé de la protection contre les courses critiques : relire les
+métadonnées au moment de l'action reviendrait à comparer l'état présent à
+lui-même (ADR-0006).
+
+### Revalidation (`security/revalidation.py`)
+
+1. résolution du chemin et comparaison au périmètre autorisé ;
+2. `lstat` — jamais `stat` — et refus des liens et points d'analyse ;
+3. comparaison identité, taille et date de modification ;
+4. ouverture avec `O_NOFOLLOW` (POSIX) ;
+5. `fstat` sur le descripteur : une substitution pendant l'ouverture est
+   détectée.
+
+Toute cible rejetée est ignorée **et journalisée** ; le reste du lot continue.
+
+### Quarantaine (`cleaners/quarantine.py`)
+
+| Situation | Comportement |
+|-----------|--------------|
+| Même volume | renommage atomique |
+| Volume différent | copie, vérification de l'empreinte, puis suppression |
+| Copie ou suppression impossible | entrée `deleted`, `reversible=False`, signalée |
+
+La quarantaine n'est **pas une sauvegarde** : l'entrée dit explicitement si
+la restauration est possible. La purge est explicite (`--yes`) et peut être
+limitée par âge.
+
+### Mesure du résultat
+
+`theoretical_bytes` (estimation) et `reclaimed_bytes` (cibles réellement
+traitées) sont rapportés séparément, avec leur écart. Liens physiques,
+compression et fichiers ouverts expliquent l'écart ; il n'est jamais masqué.
+
+### Journal d'audit (`persistence/audit_log.py`)
+
+SQLite local, schéma versionné. Consigne l'opération, la version de règle,
+l'issue de chaque cible et un résumé d'erreurs. **Ne consigne jamais le
+contenu des fichiers** ni les chemins simplement parcourus (section 5.2) ;
+aucun import réseau n'y figure, ce qui est vérifié par un test.
+
+### Mesures
+
+| Indicateur | Résultat |
+|------------|----------|
+| Dry-run sur 3 cibles | 0 fichier touché |
+| Sans `confirm` | statut `needs_confirmation`, 0 fichier touché |
+| Fichier modifié après simulation | rejeté, fichier conservé |
+| Lien substitué | rejeté, cible du lien conservée |
+| Quarantaine + restauration | contenu identique, empreinte vérifiée |
+
 ## Sécurité des chemins (security/path_policy.py)
 
 Deux primitives, testées indépendamment :

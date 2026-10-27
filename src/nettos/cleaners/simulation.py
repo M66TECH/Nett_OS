@@ -436,12 +436,23 @@ class SimulationEngine:
             result.rejected.append(RejectedFile(path=path, reason=str(exc)))
             return
 
+        # ``DirEntry.stat()`` ne renseigne pas ``st_ino`` sous Windows (0:0),
+        # ce qui rendrait toute revalidation ultérieure incapable de détecter
+        # un remplacement. On relit donc l'identité via ``lstat`` sur les
+        # seuls candidats retenus — coût négligeable, garantie indispensable.
+        try:
+            identity = os.lstat(resolved)
+        except OSError as exc:
+            result.rejected.append(RejectedFile(path=path, reason=str(exc), kind=_error_kind(exc)))
+            return
+
         result.candidates.append(
             CandidateFile(
                 path=str(resolved),
                 size_bytes=info.st_size,
                 modified_at=info.st_mtime,
                 age_days=round(age_days, 2),
+                file_id=f"{identity.st_dev}:{identity.st_ino}",
             )
         )
 
